@@ -1,86 +1,163 @@
 # AriaCast Receiver for Music Assistant
 
-![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
 
-Stream audio wirelessly from your Android device to Music Assistant players. Think of it as **AirPlay for Android** - cast audio from any app on your phone to any speaker connected to Music Assistant.<br><br>
+**Cast audio from any Android app to your Music Assistant speakers - like AirPlay for Android.**
+
+Stream music, podcasts, videos, games - anything playing on your Android device - wirelessly to any speaker or group in your Music Assistant ecosystem.
 
 <img src="https://github.com/user-attachments/assets/8ba869cf-5ee8-4021-90d7-30ad6da3e065" width="45%" />
 &nbsp;&nbsp;&nbsp;&nbsp;
-<img src="https://github.com/user-attachments/assets/cd89d6e2-bab5-4a36-bdc4-d226d7a3ce71" width="45%" /><br>
+<img src="https://github.com/user-attachments/assets/cd89d6e2-bab5-4a36-bdc4-d226d7a3ce71" width="45%" />
 
+---
 
+## ✨ Features
 
-## Features
+- 🎵 **High-Quality Streaming** - 48kHz 16-bit stereo PCM audio
+- 📱 **Zero-Config Discovery** - Servers automatically detected on your network
+- 🎼 **Rich Metadata** - Album art, track info, playback position
+- 🎮 **Bidirectional Control** - Control playback from both Music Assistant and your phone
+- 🔀 **Flexible Routing** - Stream to any player or speaker group
+- 🔌 **Universal Compatibility** - Works with any Android audio source
 
-- 🎵 **High-Quality Audio**: 48kHz 16-bit stereo PCM streaming
-- 📱 **Easy Discovery**: Automatic server detection via UDP broadcast
-- 🎼 **Full Metadata**: Track title, artist, album, artwork, duration, and position
-- 🎮 **Remote Control**: Play, pause, next, previous commands from Music Assistant UI
-- 🔀 **Flexible Routing**: Stream to any Music Assistant player or group
+---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Installation
 
-Clone this repository in the providers folder of your Music Assistant instance
+Install this plugin as a custom provider in Music Assistant:
 
-### Configuration
+1. Navigate to your Music Assistant `providers` directory
+2. Clone this repository:
+   ```bash
+   cd providers
+   git clone https://github.com/AirPlr/AriaCast-Receiver-MusicAssistant.git
+   ```
+3. Restart Music Assistant
 
-1. Enable **AriaCast Receiver** in Music Assistant settings
-2. Configure basic settings:
-   - **Server Name**: How it appears in discovery (default: "Music Assistant")
-   - **Target Player**: Auto or specific player
-   - **Ports**: 12888 (discovery), 12889 (streaming)
+### Setup
 
-### Usage
+1. **Enable the Plugin**
+   - Go to Music Assistant Settings → Providers
+   - Find **AriaCast Receiver** and click Enable
 
-1. Install the [AriaCast Android app](https://github.com/AirPlr/AriaCast-app)
-2. Open the app - it will automatically discover servers on your network
-3. Select your Music Assistant server
-4. Tap "Start Casting"
-5. Play audio from any app - it streams to Music Assistant!
+2. **Configure Settings** (optional)
+   - **Connected Player**: Choose a specific player or leave on Auto
+   - **Allow Player Switching**: Enable if you want manual control
 
-## Configuration Options
+3. **Install Android App**
+   - Download [AriaCast from GitHub](https://github.com/AirPlr/AriaCast-app)
+   - Install on your Android device
+
+### Start Casting
+
+1. Open the AriaCast app on your Android device
+2. Your Music Assistant server will appear automatically
+3. Tap to connect
+4. Start playing audio from any app - it now streams to Music Assistant!
+
+---
+
+## ⚙️ Configuration
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Server Name | AriaCast Speaker | Name shown in client discovery |
-| Connected Player | Auto | Target Music Assistant player |
-| Streaming Port | 12889 | WebSocket/HTTP port for all endpoints |
-| Discovery Port | 12888 | UDP discovery port |
-| Allow Player Switching | Yes | Enable manual source selection |
+| **Connected Player** | Auto | Target Music Assistant player. "Auto" uses currently playing player or first available. |
+| **Allow Player Switching** | Yes | Allows you to manually select which player receives the audio stream. |
 
-## Protocol Specification
+The plugin automatically configures networking on standard ports (12888 for discovery, 12889 for streaming).
 
-### Endpoints
+---
 
-| Endpoint | Type | Direction | Purpose |
-|----------|------|-----------|---------|
-| UDP `:12888` | Datagram | App → Server | Discovery broadcast |
-| `/audio` | WebSocket | App → Server | PCM audio stream |
-| `/control` | WebSocket | Server → App | Media control commands |
-| `/metadata` | HTTP POST | App → Server | Track metadata updates |
-| `/stats` | WebSocket | Server → App | Buffer statistics |
+## 🔧 How It Works
 
-### 1. UDP Discovery
+### Architecture Overview
 
-**App sends:** `DISCOVER_AUDIOCAST` (broadcast to port 12888)
+```
+┌──────────────────┐         UDP Discovery        ┌─────────────────────┐
+│  Android Device  │ ←────────────────────────────→ │  Music Assistant    │
+│  (AriaCast App)  │                                │  (This Plugin)      │
+└──────────────────┘                                └─────────────────────┘
+         │                                                    │
+         │         WebSocket: PCM Audio Stream                │
+         ├───────────────────────────────────────────────────→│
+         │                                                    │
+         │         HTTP POST: Metadata Updates                │
+         ├───────────────────────────────────────────────────→│
+         │                                                    │
+         │      WebSocket: Control Commands (play/pause)      │
+         │←───────────────────────────────────────────────────┤
+         │                                                    │
+         │      WebSocket: Buffer Statistics (optional)       │
+         │←───────────────────────────────────────────────────┤
+```
 
-**Server responds:**
-\`\`\`json
+### Connection Flow
+
+1. **Discovery Phase**
+   - Android app broadcasts `DISCOVER_AUDIOCAST` on UDP port 12888
+   - Plugin responds with server info (IP, ports, audio format)
+
+2. **Connection Phase**
+   - App connects WebSocket: `/audio` (audio stream)
+   - App connects WebSocket: `/control` (receive commands)
+   - App connects WebSocket: `/stats` (buffer monitoring)
+
+3. **Streaming Phase**
+   - App sends 3840-byte PCM frames (20ms audio chunks)
+   - App sends metadata via POST to `/metadata`
+   - Plugin forwards audio to selected Music Assistant player
+   - Plugin sends control commands back to app when needed
+
+---
+
+## 📡 Technical Specification
+
+### Audio Format
+
+| Parameter | Value |
+|-----------|-------|
+| Sample Rate | 48000 Hz |
+| Channels | 2 (Stereo) |
+| Bit Depth | 16-bit signed |
+| Encoding | PCM Little-Endian |
+| Frame Duration | 20 ms |
+| Frame Size | 3840 bytes |
+
+### Network Endpoints
+
+| Endpoint | Type | Port | Purpose |
+|----------|------|------|---------|
+| UDP Discovery | Datagram | 12888 | Server discovery |
+| `/audio` | WebSocket | 12889 | PCM audio streaming |
+| `/control` | WebSocket | 12889 | Playback control commands |
+| `/metadata` | HTTP POST | 12889 | Track metadata updates |
+| `/stats` | WebSocket | 12889 | Buffer statistics |
+
+### Discovery Protocol
+
+**Client broadcasts:**
+```
+DISCOVER_AUDIOCAST
+```
+
+**Server responds (JSON):**
+```json
 {
-  "server_name": "AriaCast Speaker",
+  "server_name": "Music Assistant",
   "ip": "192.168.1.100",
   "port": 12889,
   "samplerate": 48000,
   "channels": 2
 }
-\`\`\`
+```
 
-### 2. Audio Streaming (`/audio` WebSocket)
+### Audio Streaming Protocol
 
-**Handshake (Server → App):**
-\`\`\`json
+**Initial handshake (Server → Client):**
+```json
 {
   "status": "READY",
   "type": "handshake",
@@ -89,17 +166,17 @@ Clone this repository in the providers folder of your Music Assistant instance
   "sampleWidth": 2,
   "frameSize": 3840
 }
-\`\`\`
+```
 
-**Audio Data (App → Server):**
-- Binary WebSocket frames
-- Exactly **3840 bytes** per frame (20ms of audio)
-- Format: PCM 16-bit signed little-endian, stereo, 48kHz
+**Audio frames (Client → Server):**
+- Binary WebSocket messages
+- Exactly 3840 bytes per frame
+- Format: PCM 16-bit signed LE, stereo, 48kHz
 
-### 3. Metadata Updates (`POST /metadata`)
+### Metadata Protocol
 
-**Request:**
-\`\`\`json
+**POST /metadata** (JSON)
+```json
 {
   "data": {
     "title": "Song Title",
@@ -111,106 +188,95 @@ Clone this repository in the providers folder of your Music Assistant instance
     "isPlaying": true
   }
 }
-\`\`\`
+```
 
-**Response:** `200 OK`
+### Control Protocol
 
-### 4. Control Commands (`/control` WebSocket)
-
-**Server sends to App:**
-\`\`\`json
+**WebSocket messages (Server → Client):**
+```json
 {"action": "play"}
 {"action": "pause"}
 {"action": "next"}
 {"action": "previous"}
 {"action": "toggle"}
 {"action": "stop"}
-\`\`\`
+```
 
-### 5. Statistics (`/stats` WebSocket)
+---
 
-**Server sends periodically:**
-\`\`\`json
-{
-  "bufferedFrames": 15,
-  "droppedFrames": 0,
-  "receivedFrames": 12345
-}
-\`\`\`
+## 🐛 Troubleshooting
 
-## Audio Format
+### Server Not Appearing in App
 
-| Parameter | Value |
-|-----------|-------|
-| Sample Rate | 48000 Hz |
-| Channels | 2 (Stereo) |
-| Bit Depth | 16-bit signed |
-| Encoding | PCM Little-Endian |
-| Frame Duration | 20ms |
-| Frame Size | 3840 bytes |
+- ✅ Verify both devices are on the same network/VLAN
+- ✅ Check firewall allows UDP port 12888 (discovery)
+- ✅ Check firewall allows TCP port 12889 (streaming)
+- ✅ Ensure the plugin is enabled in Music Assistant
+- ✅ Try disabling/re-enabling the plugin
 
-## Connection Flow
+### No Audio Playback
 
-\`\`\`
+- ✅ Verify at least one player is available in Music Assistant
+- ✅ Check the selected player isn't already in use
+- ✅ Check Music Assistant logs for error messages
+- ✅ Test the player with other audio sources
+- ✅ Verify network bandwidth is sufficient for 48kHz stereo
 
-1. UDP Discovery                                            
-   App broadcasts "DISCOVER_AUDIOCAST" → Server responds    
+### Metadata Not Displaying
 
-                              ↓
+- ✅ Check Music Assistant logs for metadata parsing errors
+- ✅ Verify the Android app is sending metadata (check app settings)
+- ✅ Ensure the artwork URL is publicly accessible
 
-2. Connection Setup                                         
- Connect to ws://<ip>:12889/audio                       
-   • Wait for {"status": "READY"} handshake                 
-   • Connect to ws://<ip>:12889/control                     
-   • Connect to ws://<ip>:12889/stats                       
+### Playback Controls Not Working
 
-                              ↓
+- ✅ Verify the `/control` WebSocket connection is established
+- ✅ Check the Android app has an active media session
+- ✅ Check Music Assistant logs for control command errors
+- ✅ Try disconnecting and reconnecting the stream
 
-3. Streaming                                                
-   • Send 3840-byte PCM frames to /audio                    
-   • POST metadata changes to /metadata                     
-   • Receive control commands from /control                 
+### Audio Stuttering/Dropouts
 
-\`\`\`
+- ✅ Check WiFi signal strength on Android device
+- ✅ Verify network isn't congested
+- ✅ Check Music Assistant server CPU usage
+- ✅ Try reducing distance between device and WiFi access point
+- ✅ Disable power saving mode on Android device
 
-## Troubleshooting
+---
 
-### Server not found in app
-1. Ensure both devices are on the same network
-2. Check firewall allows UDP port 12888 and TCP port 12889
-3. Verify Music Assistant is running with the plugin enabled
+## 🔗 Related Projects
 
-### No audio playback
-1. Check a Music Assistant player is available
-2. Verify player is not already in use by another source
-3. Check Music Assistant logs for errors
-4. Ensure audio frames are exactly 3840 bytes
+- **[AriaCast Android App](https://github.com/AirPlr/AriaCast-app)** - The companion mobile application
+- **[AriaCast Standalone Server](https://github.com/AirPlr/Ariacast-server)** - Independent server implementation
+- **[Music Assistant](https://music-assistant.io/)** - The open source music player ecosystem
 
-### Metadata not showing
-1. Verify the app is sending POST requests to `/metadata` in the settings
-2. Check Music Assistant logs for metadata-related messages
+---
 
-### Control commands not working
-1. Verify the `/control` WebSocket connection is established
-2. Check the app is listening for incoming messages
-3. Ensure the app has an active media session to control
+## 🤝 Contributing
 
-## Related Projects
+Contributions are welcome! When reporting issues, please include:
 
-- **AriaCast Android App**: [github.com/AirPlr/AriaCast-app](https://github.com/AirPlr/AriaCast-app)
-- **AriaCast Standalone Server**: [github.com/AirPlr/Ariacast-server](https://github.com/AirPlr/Ariacast-server)
-
-## Contributing
-
-Report issues with:
 - Music Assistant version
-- Provider version  
-- Client app version
-- Debug logs (`--log-level debug`)
+- AriaCast Receiver plugin version
+- AriaCast Android app version
+- Relevant log output (enable debug logging in Music Assistant)
+- Steps to reproduce the issue
 
-## Credits
+---
 
-Built for Music Assistant by the community. Born out of the need for better Android casting integration.
+## 📄 License
+
+This project is developed for the Music Assistant ecosystem.
+
+---
+
+## 💙 Credits
+
+Built by the community for the Music Assistant ecosystem. Special thanks to the [AirPlr](https://github.com/AirPlr) team for creating the AriaCast protocol and Android application.
+
+**Maintainers:** Music Assistant Team  
+**Protocol:** AirPlr/AriaCast Project
 
 
 

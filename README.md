@@ -152,25 +152,25 @@ Clone this repository in the providers folder of your Music Assistant instance
 ## Connection Flow
 
 \`\`\`
-┌─────────────────────────────────────────────────────────────┐
-│ 1. UDP Discovery                                            │
-│    App broadcasts "DISCOVER_AUDIOCAST" → Server responds    │
-└─────────────────────────────────────────────────────────────┘
+
+1. UDP Discovery                                            
+   App broadcasts "DISCOVER_AUDIOCAST" → Server responds    
+
                               ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 2. Connection Setup                                         │
-│    • Connect to ws://<ip>:12889/audio                       │
-│    • Wait for {"status": "READY"} handshake                 │
-│    • Connect to ws://<ip>:12889/control                     │
-│    • Connect to ws://<ip>:12889/stats                       │
-└─────────────────────────────────────────────────────────────┘
+
+2. Connection Setup                                         
+ Connect to ws://<ip>:12889/audio                       
+   • Wait for {"status": "READY"} handshake                 
+   • Connect to ws://<ip>:12889/control                     
+   • Connect to ws://<ip>:12889/stats                       
+
                               ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 3. Streaming                                                │
-│    • Send 3840-byte PCM frames to /audio                    │
-│    • POST metadata changes to /metadata                     │
-│    • Receive control commands from /control                 │
-└─────────────────────────────────────────────────────────────┘
+
+3. Streaming                                                
+   • Send 3840-byte PCM frames to /audio                    
+   • POST metadata changes to /metadata                     
+   • Receive control commands from /control                 
+
 \`\`\`
 
 ## Troubleshooting

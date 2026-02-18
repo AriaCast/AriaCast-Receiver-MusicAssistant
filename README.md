@@ -273,7 +273,7 @@ This project is developed for the Music Assistant ecosystem.
 
 ## 💙 Credits
 
-Built by the community for the Music Assistant ecosystem. Special thanks to the [AirPlr](https://github.com/AirPlr) team for creating the AriaCast protocol and Android application.
+Built by the community for the Music Assistant ecosystem.
 
 **Maintainers:** Music Assistant Team  
 **Protocol:** AirPlr/AriaCast Project

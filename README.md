@@ -275,7 +275,7 @@ This project is developed for the Music Assistant ecosystem.
 
 Built by the community for the Music Assistant ecosystem.
 
-**Maintainers:** Music Assistant Team  
+**Maintainers:** AirPlr 
 **Protocol:** AirPlr/AriaCast Project
 
 

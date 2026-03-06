@@ -27,15 +27,10 @@ Stream music, podcasts, videos, games - anything playing on your Android device 
 
 ### Installation
 
-Install this plugin as a custom provider in Music Assistant:
+You don't need to install anything.
+It's available inside MA beta!
+Just search for AriaCast and enable
 
-1. Navigate to your Music Assistant `providers` directory
-2. Clone this repository:
-   ```bash
-   cd providers
-   git clone https://github.com/AirPlr/AriaCast-Receiver-MusicAssistant.git
-   ```
-3. Restart Music Assistant
 
 ### Setup
 

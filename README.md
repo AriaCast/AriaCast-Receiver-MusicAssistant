@@ -35,15 +35,15 @@ Just search for AriaCast and enable
 ### Setup
 
 1. **Enable the Plugin**
-   - Go to Music Assistant Settings → Providers
-   - Find **AriaCast Receiver** and click Enable
+   - Go to Music Assistant Settings → Plugins
+   - Find **AriaCast Receiver** and Enable it
 
 2. **Configure Settings** (optional)
    - **Connected Player**: Choose a specific player or leave on Auto
    - **Allow Player Switching**: Enable if you want manual control
 
 3. **Install Android App**
-   - Download [AriaCast from GitHub](https://github.com/AirPlr/AriaCast-app)
+   - Download [AriaCast from GitHub](https://github.com/AriaCast/AriaCast-app)
    - Install on your Android device
 
 ### Start Casting

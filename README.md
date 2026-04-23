@@ -23,6 +23,10 @@ Stream music, podcasts, videos, games - anything playing on your Android device 
 
 ---
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/AirPlr)
+
+---
+
 ## 🚀 Quick Start
 
 ### Installation

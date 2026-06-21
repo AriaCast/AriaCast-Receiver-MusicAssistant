@@ -191,7 +191,9 @@ class AriaCastReceiver(PluginProvider):
 
         self._runner = web.AppRunner(app, access_log=None)
         await self._runner.setup()
-        site = web.TCPSite(self._runner, "0.0.0.0", ARIACAST_PORT)
+        site = web.TCPSite(
+            self._runner, "0.0.0.0", ARIACAST_PORT, reuse_address=True
+        )
         try:
             await site.start()
         except OSError as err:
@@ -204,13 +206,22 @@ class AriaCastReceiver(PluginProvider):
 
     async def unload(self, is_removed: bool = False) -> None:
         """Tear down the server and close all connections."""
-        for ws in list(self._control_senders) | list(self._meta_sockets):
+        # Close client sockets first, but never let a failure here prevent the
+        # critical server/port teardown below (otherwise the port stays bound
+        # and the next load fails with "address already in use").
+        for ws in [*self._control_senders, *self._meta_sockets]:
             with suppress(Exception):
                 await ws.close()
-        if self._runner:
-            await self._runner.cleanup()
+        self._control_senders.clear()
+        self._meta_sockets.clear()
         if self._discovery_transport:
-            self._discovery_transport.close()
+            with suppress(Exception):
+                self._discovery_transport.close()
+            self._discovery_transport = None
+        if self._runner:
+            with suppress(Exception):
+                await self._runner.cleanup()
+            self._runner = None
 
     # -----------------------------------------------------------------------
     # PluginProvider audio-source contract

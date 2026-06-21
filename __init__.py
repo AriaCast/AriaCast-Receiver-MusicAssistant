@@ -294,7 +294,7 @@ class AriaCastReceiver(PluginProvider):
             return
         self._in_use_by_queue = queue_id
         self._active_session_id = stream_session_id
-        self._active_player_id = queue_id
+        self._active_player_id = player_id  # player_id for cmd_stop/cmd_power, not queue_id
 
     async def on_source_unselected(
         self, source_id: str, queue_id: str, stream_session_id: str
@@ -363,6 +363,10 @@ class AriaCastReceiver(PluginProvider):
                 break
 
         self.logger.info("AriaCast sender disconnected from %s", request.remote)
+        # If we were the active stream, mark as not playing so get_audio_stream can exit cleanly
+        if self._is_playing:
+            self.logger.debug("Sender disconnected while playing – clearing is_playing")
+            self._is_playing = False
         return ws
 
     async def _ws_control(self, request: web.Request) -> web.WebSocketResponse:
@@ -517,13 +521,19 @@ class AriaCastReceiver(PluginProvider):
         if is_playing and not self._in_use_by_queue:
             target = self._active_player_id or self._get_target_player_id()
             if target:
-                self._active_player_id = target
+                # _active_player_id holds player_id; _in_use_by_queue gets the real
+                # queue_id from on_source_selected once MA confirms the stream
+                if not self._active_player_id:
+                    self._active_player_id = target
                 self._in_use_by_queue = target  # optimistic guard vs duplicate events
+                self.logger.debug("Triggering play on player %s", target)
                 self.mass.create_task(self._safe_play_media(target))
         elif not is_playing and was_playing and self._in_use_by_queue:
-            self._active_player_id = self._in_use_by_queue
-            target = self._in_use_by_queue
-            self.mass.create_task(self.mass.players.cmd_stop(target))
+            player_id = self._active_player_id
+            # Clear the queue guard before the stop so a fast resume can re-trigger
+            self._in_use_by_queue = None
+            if player_id:
+                self.mass.create_task(self.mass.players.cmd_stop(player_id))
 
         await self._broadcast_meta()
 
@@ -583,11 +593,13 @@ class AriaCastReceiver(PluginProvider):
 
     async def _cmd_pause(self) -> None:
         self.logger.info("PAUSE")
-        if self._in_use_by_queue:
-            self._active_player_id = self._in_use_by_queue
-            await self.mass.players.cmd_stop(self._in_use_by_queue)
-        await self._forward_action("pause")
+        player_id = self._active_player_id
+        # Clear queue guard before stop so a fast resume can re-trigger play_media
+        self._in_use_by_queue = None
         self._is_playing = False
+        if player_id:
+            await self.mass.players.cmd_stop(player_id)
+        await self._forward_action("pause")
         await self._broadcast_meta()
 
     async def _forward_action(self, action: str) -> None:
@@ -602,10 +614,12 @@ class AriaCastReceiver(PluginProvider):
         self._control_senders -= dead
 
     async def _safe_play_media(self, target: str) -> None:
+        uri = str(self._audio_source.uri)
+        self.logger.debug("play_media %s → %s", uri, target)
         try:
-            await self.mass.player_queues.play_media(target, str(self._audio_source.uri))
+            await self.mass.player_queues.play_media(target, uri)
         except Exception as exc:
-            self.logger.warning("play_media failed for %s: %s", target, exc)
+            self.logger.warning("play_media failed for player %s: %s", target, exc)
             if self._in_use_by_queue == target:
                 self._in_use_by_queue = None
 
@@ -673,13 +687,20 @@ class AriaCastReceiver(PluginProvider):
         if self._active_player_id:
             if self.mass.players.get_player(self._active_player_id):
                 return self._active_player_id
+            self.logger.debug("Stored player %s no longer available", self._active_player_id)
             self._active_player_id = None
 
         if self._default_player_id == PLAYER_ID_AUTO:
             for player in self.mass.players.all_players(False, False):
                 if player.state.playback_state == PlaybackState.PLAYING:
+                    self.logger.debug("Auto-selected playing player: %s (%s)", player.display_name, player.player_id)
                     return player.player_id
             players = list(self.mass.players.all_players(False, False))
-            return players[0].player_id if players else None
+            if players:
+                self.logger.debug("Auto-selected first player: %s (%s)", players[0].display_name, players[0].player_id)
+                return players[0].player_id
+            self.logger.warning("No MA players available to route AriaCast audio")
+            return None
 
+        self.logger.debug("Using configured player: %s", self._default_player_id)
         return self._default_player_id

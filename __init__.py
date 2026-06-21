@@ -164,8 +164,9 @@ class AriaCastBridge(PluginProvider):
             can_next_previous=True,
             exclusive=True,
             allow_external_trigger=True,
-            # Passive: only flows when an external Cast client is connected
-            can_initiate=False,
+            # Allow manual selection from Live Inputs; get_stream_details raises
+            # AudioError if no Cast client is connected yet.
+            can_initiate=True,
         )
 
     async def handle_async_init(self) -> None:

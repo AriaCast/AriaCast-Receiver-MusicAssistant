@@ -98,11 +98,16 @@ async def get_config_entries(
 class AriaCastBridge(PluginProvider):
     """Bridge for the AriaCast Go Binary."""
 
+    @property
+    def supported_features(self) -> set[ProviderFeature]:
+        """Return the features supported by this provider."""
+        return SUPPORTED_FEATURES
+
     def __init__(
         self, mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig
     ) -> None:
         """Initialize AriaCast Receiver."""
-        super().__init__(mass, manifest, config, SUPPORTED_FEATURES)
+        super().__init__(mass, manifest, config)
         self._default_player_id = str(config.get_value(CONF_MASS_PLAYER_ID))
 
         # Process & Pipe
@@ -171,6 +176,10 @@ class AriaCastBridge(PluginProvider):
 
     async def handle_async_init(self) -> None:
         """Start the provider."""
+        # Remove any leftover pipe from a crashed/restarted previous run
+        # (os.mkfifo raises FileExistsError if the path already exists).
+        with suppress(Exception):
+            await self._pipe.remove()
         await self._pipe.create()
 
         binary_path = await self._get_binary_path()

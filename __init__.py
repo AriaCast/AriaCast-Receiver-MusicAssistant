@@ -225,7 +225,11 @@ class AriaCastBridge(PluginProvider):
         self.logger.info("get_stream_details called: source=%s queue=%s", source_id, queue_id)
         if source_id != AUDIO_SOURCE_ID:
             raise MediaNotFoundError(f"Unknown AudioSource: {source_id}")
-        if not self._binary_is_playing:
+        # Refuse only when there has never been any Cast session at all.
+        # During a resume the binary may briefly report is_playing=False between
+        # the cmd_play call and the next metadata pulse, but _active_player_id
+        # is preserved from the previous session, so we allow it through.
+        if not self._binary_is_playing and not self._active_player_id:
             raise AudioError(
                 "AriaCast has no active Cast client — start playback from your "
                 "Cast-capable device first"
@@ -475,17 +479,14 @@ class AriaCastBridge(PluginProvider):
             # don't queue duplicate play_media calls before on_source_selected fires.
             target = self._active_player_id or self._get_target_player_id()
             if target:
-                uri = str(self._audio_source.uri)
                 self.logger.info(
-                    "External playback started, routing to player %s (uri=%s)", target, uri
+                    "External playback started, routing to player %s", target
                 )
                 self.frame_queue.clear()
                 self.frame_available.clear()
                 self._active_player_id = target
                 self._in_use_by_queue = target  # prevent duplicate calls
-                self.mass.create_task(
-                    self.mass.player_queues.play_media(target, uri)
-                )
+                self.mass.create_task(self._safe_play_media(target))
         elif not is_playing and was_playing and self._in_use_by_queue:
             # External app paused — stop the MA player so it can serve other content
             self.logger.info("External playback paused, releasing player")
@@ -499,16 +500,35 @@ class AriaCastBridge(PluginProvider):
     # Play / Pause commands (called via on_source_control)
     # ---------------------------------------------------------------------------
 
+    async def _safe_play_media(self, target: str) -> None:
+        """Call play_media and clear the optimistic queue claim on failure."""
+        try:
+            await self.mass.player_queues.play_media(target, str(self._audio_source.uri))
+        except Exception as exc:
+            self.logger.warning("play_media failed for %s: %s", target, exc)
+            # Clear the optimistic claim so the next is_playing=True pulse
+            # can retry routing instead of seeing a stuck non-None value.
+            if self._in_use_by_queue == target:
+                self._in_use_by_queue = None
+
     async def _cmd_play(self) -> None:
         """Resume playback: re-route to the last active player if needed."""
         self.logger.info("PLAY command")
+        # Send play to binary FIRST so that when MA calls get_stream_details
+        # (triggered by play_media below) the binary is already transitioning
+        # to is_playing=True and _binary_is_playing reflects reality.
+        await self._send_api_command("play")
         if not self._in_use_by_queue and self._active_player_id:
             self.frame_queue.clear()
             self.frame_available.clear()
-            await self.mass.player_queues.play_media(
-                self._active_player_id, str(self._audio_source.uri)
-            )
-        await self._send_api_command("play")
+            # Speculatively mark as playing so get_stream_details passes
+            # before the next metadata pulse confirms it.
+            self._binary_is_playing = True
+            target = self._active_player_id
+            # Optimistic claim to block duplicate routing from concurrent
+            # metadata pulses while the play_media task is in flight.
+            self._in_use_by_queue = target
+            self.mass.create_task(self._safe_play_media(target))
 
     async def _cmd_pause(self) -> None:
         """Pause playback: stop the MA player and tell the binary to pause."""

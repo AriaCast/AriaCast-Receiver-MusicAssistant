@@ -392,6 +392,7 @@ class AriaCastBridge(PluginProvider):
                     retry_delay = 1
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
+                            self.logger.debug("WS raw: %s", msg.data)
                             payload = msg.json()
                             if payload.get("type") == "metadata":
                                 self._update_metadata(payload.get("data", {}))

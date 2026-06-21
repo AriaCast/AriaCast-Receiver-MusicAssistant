@@ -222,6 +222,7 @@ class AriaCastBridge(PluginProvider):
         Keeping this idempotent lets queue preload fetch StreamDetails without
         blocking a subsequent cross-queue handoff.
         """
+        self.logger.info("get_stream_details called: source=%s queue=%s", source_id, queue_id)
         if source_id != AUDIO_SOURCE_ID:
             raise MediaNotFoundError(f"Unknown AudioSource: {source_id}")
         if not self._binary_is_playing:
@@ -247,7 +248,12 @@ class AriaCastBridge(PluginProvider):
         # _active_session_id forward but keeps _in_use_by_queue) causes
         # this generator to exit without clobbering the new session's claim.
         captured_session_id = self._active_session_id
-        self.logger.debug("Audio stream requested by queue %s", consumer_queue)
+        self.logger.info(
+            "get_audio_stream started: queue=%s session=%s pipe_queue_size=%d",
+            consumer_queue,
+            captured_session_id,
+            len(self.frame_queue),
+        )
 
         # Pre-buffer before handing frames to the player to avoid underruns
         # on high-latency targets like Sendspin.
@@ -464,15 +470,21 @@ class AriaCastBridge(PluginProvider):
         self._binary_is_playing = is_playing
 
         if is_playing and not self._in_use_by_queue:
-            # External app started or resumed — route to a player
+            # External app started or resumed — route to a player.
+            # Set _in_use_by_queue immediately so repeated metadata pulses
+            # don't queue duplicate play_media calls before on_source_selected fires.
             target = self._active_player_id or self._get_target_player_id()
             if target:
-                self.logger.info("External playback started, routing to player %s", target)
+                uri = str(self._audio_source.uri)
+                self.logger.info(
+                    "External playback started, routing to player %s (uri=%s)", target, uri
+                )
                 self.frame_queue.clear()
                 self.frame_available.clear()
                 self._active_player_id = target
+                self._in_use_by_queue = target  # prevent duplicate calls
                 self.mass.create_task(
-                    self.mass.player_queues.play_media(target, str(self._audio_source.uri))
+                    self.mass.player_queues.play_media(target, uri)
                 )
         elif not is_playing and was_playing and self._in_use_by_queue:
             # External app paused — stop the MA player so it can serve other content
